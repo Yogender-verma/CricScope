@@ -1557,15 +1557,46 @@ if st.session_state.page == "Analysis":
             'rrr': [rrr]
         })
 
-        with st.spinner(""):
-            time.sleep(0.4)
-            # Edge-case handling for final ball/completed innings boundaries
-            if runs_left <= 0:
-                win = 1.0
-                lose = 0.0
-            elif balls_left <= 0:
+        # ---- VALIDATION LAYER (Issue #118) ----
+        is_match_decided = False
+        verdict_msg = ""
+        verdict_type = "info" # "success" for chasing team win, "error" for chasing team loss, "warning" for tie/invalid
+        
+        if score >= target:
+            is_match_decided = True
+            verdict_msg = f"🏆 Match Decided: **{batting_team}** has already reached the target of {target} and won the match!"
+            verdict_type = "success"
+            win = 1.0
+            lose = 0.0
+        elif wickets >= 10:
+            is_match_decided = True
+            if score == target - 1:
+                verdict_msg = f"🤝 Match Decided: **{batting_team}** is all out for {score}. The match is a **TIE**!"
+                verdict_type = "warning"
+                win = 0.5
+                lose = 0.5
+            else:
+                verdict_msg = f"❌ Match Decided: **{batting_team}** is all out for {score} (target {target}). **{bowling_team}** won by {target - 1 - score} runs!"
+                verdict_type = "error"
                 win = 0.0
                 lose = 1.0
+        elif balls_left <= 0:
+            is_match_decided = True
+            if score == target - 1:
+                verdict_msg = f"🤝 Match Decided: Overs completed. The match is a **TIE**!"
+                verdict_type = "warning"
+                win = 0.5
+                lose = 0.5
+            else:
+                verdict_msg = f"❌ Match Decided: Overs completed. **{batting_team}** failed to reach the target of {target} and lost by {target - 1 - score} runs!"
+                verdict_type = "error"
+                win = 0.0
+                lose = 1.0
+
+        with st.spinner(""):
+            time.sleep(0.4)
+            if is_match_decided:
+                pass # Bypasses ML model prediction cleanly
             else:
                 proba = pipe.predict_proba(input_df)[0]
                 win = proba[1]
@@ -1578,6 +1609,15 @@ if st.session_state.page == "Analysis":
                 Prediction Output
             </div>
         """, unsafe_allow_html=True)
+
+        if is_match_decided:
+            if verdict_type == "success":
+                st.success(verdict_msg)
+            elif verdict_type == "error":
+                st.error(verdict_msg)
+            else:
+                st.warning(verdict_msg)
+            st.markdown('<div style="height:12px;"></div>', unsafe_allow_html=True)
 
         res_col1, res_col2 = st.columns([1.1, 1.1], gap="medium")
 
